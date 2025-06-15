@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
-        .name = "raylib_tinker",
+        .name = "pongz",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
