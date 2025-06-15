@@ -35,13 +35,11 @@ const Rectangle = struct {
        }; 
     }
 
-    
     pub fn update(self: *Rectangle, ball: *Circle) void {
         const paddle_half_height = 45.0;
         const targetY = ball.pos.y - paddle_half_height;
         self.pos.y = std.math.clamp(targetY, 10.0, 720.0 - 90.0 - 10.0);
     }
-
 
     pub fn draw(self: Rectangle, size: c.Vector2, color: c.Color) void {
         c.DrawRectangleV(self.pos, size, color);
@@ -75,6 +73,10 @@ fn UpdatePlayer(player: *Rectangle, dt: f32, rectSize: c.Vector2) void {
     player.pos.y = std.math.clamp(player.pos.y, 10.0, 720.0 - rectSize.y - 10.0);
 }
 
+fn updateScore(score: *u64) void {
+    score.* += 1;
+}
+
 pub fn main() void {
 
     c.InitWindow(1280, 720, "window");
@@ -92,27 +94,38 @@ pub fn main() void {
     
     var accumulator : f32 = 0.0;
 
+    var botScore : u64 = 0;
+    var playerScore : u64 = 0;
+
     while (!c.WindowShouldClose()) {
         const dt = c.GetFrameTime();
         accumulator += dt;
         
         UpdatePlayer(&playerPaddle, dt, rectSize);
+        ball.update(dt);
+        leftPaddle.update(&ball);
+
         //fixed update
         while (accumulator >= fixed_dt){
-            ball.update(dt);
-            leftPaddle.update(&ball);
-
             if (checkCircleRectCollision(ball.pos, radius, leftPaddle.pos, rectSize)) {
                 ball.vel.x *= -1;
+                ball.vel.y *= 1;
             }
             if (checkCircleRectCollision(ball.pos, radius, playerPaddle.pos, rectSize)) {
                 ball.vel.x *= -1;
+                ball.vel.y *= 1;
             }
             if (ball.pos.y - radius <= 10 or ball.pos.y + radius >= 710) {
                 ball.vel.y *= -1;
             }
             if (ball.pos.x - radius <= 10 or ball.pos.x + radius >= 1270) {
                 ball.vel.x *= -1;
+                if(ball.pos.x <= 20) {
+                    updateScore(&playerScore);
+                } 
+                else {
+                    updateScore(&botScore);
+                }
             }
 
             accumulator -= fixed_dt;
@@ -131,9 +144,13 @@ pub fn main() void {
         c.DrawRectangle(0, 710, 1280, 10, c.GRAY); // bottom
         c.DrawRectangle(0, 0, 10, 720, c.GRAY);    // left
         c.DrawRectangle(1270, 0, 10, 720, c.GRAY); // right
-                                                         
-        ball.draw(radius, c.SKYBLUE);
-        leftPaddle.draw(rectSize, c.WHITE);
-        playerPaddle.draw(rectSize, c.WHITE);
+                                    
+        //score
+        c.DrawText(c.TextFormat("%01i", botScore), 70, 650, 30, c.RED);
+        c.DrawText(c.TextFormat("%01i", playerScore), 1210, 650, 30, c.SKYBLUE);
+        
+        ball.draw(radius, c.GOLD);
+        leftPaddle.draw(rectSize, c.RED);
+        playerPaddle.draw(rectSize, c.SKYBLUE);
     }
 }
