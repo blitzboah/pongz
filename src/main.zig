@@ -130,6 +130,17 @@ fn drawBallTrail(radius: f32) void {
 pub fn main() void {
     c.InitWindow(1280, 720, "window");
     c.SetTargetFPS(60);
+
+    const shader = c.LoadShader(null, "src/shader.fs");
+    if (shader.id == 0) {
+        std.debug.print("shader failed to load.\n", .{});
+    }
+    const uCenterLoc = c.GetShaderLocation(shader, "uCenter");
+    const iResolutionLoc = c.GetShaderLocation(shader, "iResolution");
+    const iTimeLoc = c.GetShaderLocation(shader, "iTime");
+
+    var resolution: [3]f32 = .{1280.0, 720.0, 0.0};
+
     const fixed_dt = 1.0 / 60.0;
     defer c.CloseWindow();
 
@@ -137,6 +148,7 @@ pub fn main() void {
     var leftPaddle = Rectangle.init(100, 400, 0, 300);
     var playerPaddle = Rectangle.init(1180, 400, 0, 100);
 
+    var start_time: f64 = 0.0;
     var zaWarudo: bool = false;
     var savedBall = Circle.init(0, 0, 0, 0);
     var savedLeftPaddle = Rectangle.init(0, 0, 0, 0);
@@ -152,19 +164,21 @@ pub fn main() void {
         accumulator += dt;
 
         UpdatePlayer(&playerPaddle, dt, rectSize);
-        
-        if(c.IsKeyPressed(c.KEY_Z)){
-           zaWarudo = !zaWarudo;
 
-           if(zaWarudo){
-               savedBall = ball;
-               savedLeftPaddle = leftPaddle;
-           }
-           else{
+
+        if (c.IsKeyPressed(c.KEY_Z) and !zaWarudo) {
+            zaWarudo = !zaWarudo;
+
+            if (zaWarudo) {
+                savedBall = ball;
+                savedLeftPaddle = leftPaddle;
+                start_time = c.GetTime(); // start timing from now
+            } else {
                 ball = savedBall;
                 leftPaddle = savedLeftPaddle;
-           }
+            }
         }
+
 
         if(!zaWarudo){
             ball.update(dt);
@@ -175,44 +189,49 @@ pub fn main() void {
         // fixed update
         while (accumulator >= fixed_dt){
             if (!zaWarudo) {
-                    if (checkCircleRectCollision(ball.pos, radius, playerPaddle.pos, rectSize)) {
-                        const paddleCenterY = playerPaddle.pos.y + rectSize.y / 2;
-                        const ballRelativeY = ball.pos.y - paddleCenterY;
-                        if (ball.pos.x < playerPaddle.pos.x + rectSize.x / 2) {
-                            ball.vel.x = -@abs(ball.vel.x);
-                        } else {
-                            ball.vel.y *= -1;
-                            ball.vel.x += ballRelativeY * 0.1;
-                        }
-                        if (c.IsKeyDown(c.KEY_LEFT_SHIFT)) {
-                            ball.vel.x *= 1.05;
-                            ball.vel.y *= 1.05;
-                        }
-                    }
-
-                    if (checkCircleRectCollision(ball.pos, radius, leftPaddle.pos, rectSize)) {
-                        const paddleCenterY = leftPaddle.pos.y + rectSize.y / 2;
-                        const ballRelativeY = ball.pos.y - paddleCenterY;
-                        if (ball.pos.x > leftPaddle.pos.x + rectSize.x / 2) {
-                            ball.vel.x = @abs(ball.vel.x);
-                        } else {
-                            ball.vel.y *= -1;
-                            ball.vel.x += ballRelativeY * 0.1;
-                        }
-                    }
-
-                    if (ball.pos.y - radius <= 10 or ball.pos.y + radius >= 710) {
+                if (checkCircleRectCollision(ball.pos, radius, playerPaddle.pos, rectSize)) {
+                    const paddleCenterY = playerPaddle.pos.y + rectSize.y / 2;
+                    const ballRelativeY = ball.pos.y - paddleCenterY;
+                    if (ball.pos.x < playerPaddle.pos.x + rectSize.x / 2) {
+                        ball.vel.x = -@abs(ball.vel.x);
+                    } else {
                         ball.vel.y *= -1;
+                        ball.vel.x += ballRelativeY * 0.1;
+                    }
+                }
+
+                if (checkCircleRectCollision(ball.pos, radius, leftPaddle.pos, rectSize)) {
+                    const paddleCenterY = leftPaddle.pos.y + rectSize.y / 2;
+                    const ballRelativeY = ball.pos.y - paddleCenterY;
+                    if (ball.pos.x > leftPaddle.pos.x + rectSize.x / 2) {
+                        ball.vel.x = @abs(ball.vel.x);
+                    } else {
+                        ball.vel.y *= -1;
+                        ball.vel.x += ballRelativeY * 0.1;
+                    }
+                    
+                    ball.vel.x *= 1.05;
+                    ball.vel.y *= 1.05;
+                }
+
+                if (ball.pos.y - radius <= 10 or ball.pos.y + radius >= 710) {
+                    ball.vel.y *= -1;
+                }
+
+                if (ball.pos.x - radius <= 10 or ball.pos.x + radius >= 1270) {
+                    ball.vel.x *= -1;
+                    if (ball.pos.x <= 20) {
+                        updateScore(&playerScore);
+                    } else {
+                        updateScore(&botScore);
                     }
 
-                    if (ball.pos.x - radius <= 10 or ball.pos.x + radius >= 1270) {
-                        ball.vel.x *= -1;
-                        if (ball.pos.x <= 20) {
-                            updateScore(&playerScore);
-                        } else {
-                            updateScore(&botScore);
-                        }
-                    }
+                    ball.pos.x = 640;
+                    ball.pos.y = 360;
+
+                    ball.vel.x = -300;
+                    ball.vel.y = 300;
+                }
             }
             accumulator -= fixed_dt;
         }
@@ -220,18 +239,51 @@ pub fn main() void {
         c.BeginDrawing();
         defer c.EndDrawing();
 
-        c.ClearBackground(c.BLACK);
-        
+
+        if (zaWarudo) {
+            var time: f32 = @floatCast(c.GetTime() - start_time);
+
+
+            if (time >= 2) {
+                zaWarudo = false;
+                ball = savedBall;
+                leftPaddle = savedLeftPaddle;
+            }
+
+            var uCenter: [2]f32 = .{
+                playerPaddle.pos.x + rectSize.x / 2,
+                720.0 - (playerPaddle.pos.y + rectSize.y / 2) 
+            };
+
+            c.SetShaderValue(shader, iResolutionLoc, &resolution, c.SHADER_UNIFORM_VEC3);
+            c.SetShaderValue(shader, iTimeLoc, &time, c.SHADER_UNIFORM_FLOAT);
+            c.SetShaderValue(shader, uCenterLoc, &uCenter, c.SHADER_UNIFORM_VEC2);
+
+            c.ClearBackground(c.BLACK);
+
+            c.BeginBlendMode(c.BLEND_ADDITIVE);
+            c.BeginShaderMode(shader);
+            c.DrawRectangle(0, 0, 1280, 720, c.WHITE);
+            c.EndShaderMode();
+            c.EndBlendMode();
+
+
+        } else {
+            c.ClearBackground(c.BLACK);
+        }
+
         //drawing
         c.DrawText("pongz", 20, 20, 20, c.WHITE);
         c.DrawRectangle(0, 0, 1280, 10, c.GRAY);
         c.DrawRectangle(0, 710, 1280, 10, c.GRAY);
         c.DrawRectangle(0, 0, 10, 720, c.GRAY);
         c.DrawRectangle(1270, 0, 10, 720, c.GRAY);
-        
+
         //score
         c.DrawText(c.TextFormat("%01i", botScore), 70, 650, 30, c.RED);
         c.DrawText(c.TextFormat("%01i", playerScore), 1210, 650, 30, c.SKYBLUE);
+        
+        //c.DrawFPS(600, 100);
 
         drawBallTrail(radius);
         ball.draw(radius, c.GOLD);
