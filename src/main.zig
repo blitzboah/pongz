@@ -134,7 +134,12 @@ pub fn main() void {
     const shader = c.LoadShader(null, "src/shader.fs");
     if (shader.id == 0) {
         std.debug.print("shader failed to load.\n", .{});
+        return;
     }
+
+    defer c.CloseWindow();
+    defer c.UnloadShader(shader);
+
     const uCenterLoc = c.GetShaderLocation(shader, "uCenter");
     const iResolutionLoc = c.GetShaderLocation(shader, "iResolution");
     const iTimeLoc = c.GetShaderLocation(shader, "iTime");
@@ -142,7 +147,7 @@ pub fn main() void {
     var resolution: [3]f32 = .{1280.0, 720.0, 0.0};
 
     const fixed_dt = 1.0 / 60.0;
-    defer c.CloseWindow();
+    
 
     var ball = Circle.init(300, 200, 300, 300);
     var leftPaddle = Rectangle.init(100, 400, 0, 300);
